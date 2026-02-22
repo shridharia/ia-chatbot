@@ -1,22 +1,22 @@
-import OpenAI from "openai";
+let _openai: InstanceType<typeof import("openai").default> | null = null;
 
-let _openai: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
+function getOpenAI() {
   if (!_openai) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error("Missing credentials. Please set the OPENAI_API_KEY environment variable.");
     }
+    // Dynamic require - OpenAI package only loads at request time, never at build
+    const OpenAI = require("openai").default;
     _openai = new OpenAI({ apiKey });
   }
   return _openai;
 }
 
 // Lazy getter - only initializes when first used (at runtime), not at build time
-export const openai = new Proxy({} as OpenAI, {
+export const openai = new Proxy({} as InstanceType<typeof import("openai").default>, {
   get(_, prop) {
-    return getOpenAI()[prop as keyof OpenAI];
+    return getOpenAI()![prop as keyof ReturnType<typeof getOpenAI>];
   },
 });
 
