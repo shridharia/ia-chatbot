@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { openai, CHAT_MODEL } from "@/lib/openai";
 import { getRelevantContext } from "@/lib/rag";
 
+// Prevent Next.js from evaluating this route at build time (avoids OPENAI_API_KEY requirement during build)
+export const dynamic = "force-dynamic";
+
 const SYSTEM_PROMPT = `You are the IA Digital Agent for Impact Analytics (impactanalytics.ai). You help visitors learn about Impact Analytics's solutions, products, services, and company.
 
 Guidelines:
