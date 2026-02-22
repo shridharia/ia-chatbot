@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { openai, CHAT_MODEL } from "@/lib/openai";
-import { getRelevantContext } from "@/lib/rag";
 
 // Prevent Next.js from evaluating this route at build time (avoids OPENAI_API_KEY requirement during build)
 export const dynamic = "force-dynamic";
@@ -22,6 +20,12 @@ export async function POST(req: NextRequest) {
     if (!lastMessage || lastMessage.role !== "user") {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
+
+    // Dynamic import - only load OpenAI/RAG at request time, never at build time
+    const [{ openai, CHAT_MODEL }, { getRelevantContext }] = await Promise.all([
+      import("@/lib/openai"),
+      import("@/lib/rag"),
+    ]);
 
     const userQuery = lastMessage.content;
     const docs = await getRelevantContext(userQuery);
