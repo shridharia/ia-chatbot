@@ -6,17 +6,22 @@
  */
 
 import { config } from "dotenv";
-config({ path: ".env.local" });
+import * as path from "path";
+
+config({ path: path.join(process.cwd(), ".env.local") });
 
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { parse } from "csv-parse/sync";
 import * as fs from "fs";
-import * as path from "path";
 
 const CHUNK_SIZE = 1500;
 const CHUNK_OVERLAP = 200;
 const EMBEDDING_MODEL = "text-embedding-3-small";
+
+// Minimal ingestion: set to limit API calls when quota is low
+const MAX_ROWS = parseInt(process.env.INGEST_MAX_ROWS ?? "10", 10);
+const MAX_CHUNKS_PER_PAGE = parseInt(process.env.INGEST_MAX_CHUNKS ?? "2", 10);
 
 function chunkText(text: string): string[] {
   const chunks: string[] = [];
@@ -63,6 +68,23 @@ async function main() {
   const supabase = createClient(supabaseUrl, serviceKey);
   const openai = new OpenAI({ apiKey: openaiKey });
 
+  // Test Supabase connection first
+  console.log("Testing Supabase connection...");
+  const { data: testData, error: testErr } = await supabase
+    .from("knowledge_base")
+    .select("id")
+    .limit(1);
+  if (testErr) {
+    console.error("Supabase connection failed:", testErr.message);
+    if (testErr.cause) console.error("Cause:", testErr.cause);
+    console.error("\nTroubleshooting:");
+    console.error("1. Check if your Supabase project is paused (free tier). Go to supabase.com dashboard and Restore if needed.");
+    console.error("2. Verify NEXT_PUBLIC_SUPABASE_URL in .env.local is correct.");
+    console.error("3. Check your network/firewall allows connections to supabase.co");
+    process.exit(1);
+  }
+  console.log("Supabase connection OK.");
+
   const raw = fs.readFileSync(csvPath, "utf-8");
   const records = parse(raw, {
     columns: true,
@@ -71,6 +93,8 @@ async function main() {
   }) as { "Webflow Live Page URLs": string; Content: string }[];
 
   console.log(`Parsed ${records.length} rows from CSV.`);
+  const recordsToProcess = records.slice(0, MAX_ROWS);
+  console.log(`Processing ${recordsToProcess.length} rows (max ${MAX_ROWS}), ${MAX_CHUNKS_PER_PAGE} chunks per page.`);
 
   // Clear existing (optional - remove if you want to append)
   const { error: deleteErr } = await supabase.from("knowledge_base").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -81,15 +105,15 @@ async function main() {
   }
 
   let totalChunks = 0;
-  for (let i = 0; i < records.length; i++) {
-    const row = records[i];
+  for (let i = 0; i < recordsToProcess.length; i++) {
+    const row = recordsToProcess[i];
     const url = row["Webflow Live Page URLs"]?.trim();
     const content = row["Content"]?.trim();
     if (!url || !content) continue;
 
     const cleanContent = stripHtmlEntities(content);
     const title = cleanContent.slice(0, 200).split("|")[0]?.trim() || url;
-    const chunks = chunkText(cleanContent);
+    const chunks = chunkText(cleanContent).slice(0, MAX_CHUNKS_PER_PAGE);
 
     for (const chunk of chunks) {
       let embedding: number[];
@@ -113,17 +137,18 @@ async function main() {
 
       if (insertErr) {
         console.error(`Insert error for ${url}:`, insertErr.message);
+        if (insertErr.cause) console.error("  Cause:", insertErr.cause);
       } else {
         totalChunks++;
       }
     }
 
-    if ((i + 1) % 20 === 0) {
-      console.log(`Processed ${i + 1}/${records.length} pages, ${totalChunks} chunks.`);
+    if ((i + 1) % 5 === 0 || i === recordsToProcess.length - 1) {
+      console.log(`Processed ${i + 1}/${recordsToProcess.length} pages, ${totalChunks} chunks.`);
     }
   }
 
-  console.log(`Done. Ingested ${totalChunks} chunks from ${records.length} pages.`);
+  console.log(`Done. Ingested ${totalChunks} chunks from ${recordsToProcess.length} pages.`);
 }
 
 main().catch(console.error);

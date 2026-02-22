@@ -3,11 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
+    "dev:fix-tls": "NODE_TLS_REJECT_UNAUTHORIZED=0 next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "ingest": "tsx scripts/ingest.ts"
+    "ingest": "tsx scripts/ingest.ts",
+    "ingest:fix-tls": "NODE_TLS_REJECT_UNAUTHORIZED=0 tsx scripts/ingest.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",

@@ -43,15 +43,37 @@ Required:
 2. Enable the **pgvector** extension in Database → Extensions
 3. Run the schema in `supabase/schema.sql` in the SQL Editor
 
-### 4. Ingest knowledge base
+### 4. Enable RAG search function
 
-Populate the knowledge base from the CSV file:
+Run `supabase/match_documents.sql` in the Supabase SQL Editor. This creates the `match_documents` function for similarity search.
+
+### 5. Ingest knowledge base
+
+Populate the knowledge base from the CSV file (requires OpenAI API quota):
 
 ```bash
 npm run ingest
 ```
 
-### 5. Run the app
+For minimal ingestion (when quota is limited), use env vars to limit rows and chunks:
+
+```bash
+INGEST_MAX_ROWS=5 INGEST_MAX_CHUNKS=1 npm run ingest
+```
+
+Defaults: 10 rows, 2 chunks per page.
+
+If you get `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` (TLS/certificate error, common with corporate networks):
+
+```bash
+npm run ingest:fix-tls
+# or
+NODE_TLS_REJECT_UNAUTHORIZED=0 INGEST_MAX_ROWS=100 npm run ingest
+```
+
+Use only for local ingestion; do not use in production.
+
+### 6. Run the app
 
 ```bash
 npm run dev
