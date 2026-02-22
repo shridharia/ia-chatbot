@@ -92,17 +92,17 @@ async function main() {
     const chunks = chunkText(cleanContent);
 
     for (const chunk of chunks) {
-      const { data: embed, error: embedErr } = await openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: chunk,
-      });
-
-      if (embedErr) {
-        console.error(`Embedding error for ${url}:`, embedErr.message);
+      let embedding: number[];
+      try {
+        const embed = await openai.embeddings.create({
+          model: EMBEDDING_MODEL,
+          input: chunk,
+        });
+        embedding = embed.data[0].embedding;
+      } catch (embedErr) {
+        console.error(`Embedding error for ${url}:`, embedErr);
         continue;
       }
-
-      const embedding = embed.data[0].embedding;
       const { error: insertErr } = await supabase.from("knowledge_base").insert({
         url,
         content: chunk,
